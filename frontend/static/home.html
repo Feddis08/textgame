@@ -1,0 +1,18 @@
+<html>
+  <head>
+    <script
+      src="https://cdn.socket.io/3.1.3/socket.io.min.js"
+      integrity="sha384-cPwlPLvBTa3sKAgddT6krw0cJat7egBga3DJepJyrLl4Q9/5WLra3rrnMcyTyOnh"
+      crossorigin="anonymous"
+    ></script>
+    <script src="./script.js"></script>
+  </head>
+  <body>
+    <h1>TextGame</h1>
+    <label for="fname">Name:</label><br />
+    <input type="text" id="fname" name="pName" /><br />
+    <button onClick="Server.join();">Join</button>
+    <p id="pTag10"></p>
+    <p id="pTag0"></p>
+  </body>
+</html>
