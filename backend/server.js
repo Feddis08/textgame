@@ -3,35 +3,16 @@ var cors = require("cors");
 var app = express();
 var port = 3030;
 var socket = require("socket.io");
+var User = require("./classes/User.js");
+var Output = require("./classes/Output.js");
 app.get("/products/:id", function (req, res, next) {
   res.json({ msg: "This is CORS-enabled for all origins!" });
 });
 app.use(express.static("static"));
-//j
 
 const http = app.listen(3030);
 
 app.use(cors());
-class Player {
-  type = "";
-  name = null;
-  id = null;
-  message = null;
-  registerd = false;
-  actionMessage = false;
-  available = false;
-}
-class Output {
-  author = null;
-  content = null;
-  type = null;
-  isMessage = false;
-  count = 0;
-}
-class Status {
-  clientStatus = "";
-  discription = "";
-}
 //socketConnections = () => {
 var io = require("socket.io")(http, {
   allowEIO3: true,
@@ -43,69 +24,74 @@ var io = require("socket.io")(http, {
   },
 });
 io.on("connection", (socket) => {
-  let id = socket.id;
-  socket.on("join", (playerName) => {
-    GameServer.online += 1;
-    player = new Player();
-    player.name = playerName;
-    player.available = true;
-    player.id = socket.id;
-    player.registerd = true;
-    player.type = "join";
-    GameServer.players.push(player);
-    io.to(player.id).emit("ok", player.id);
-    io.emit("response", player);
+  socket.on("join", (token) => {
+    console.log("Token:", token, socket.id);
+    if (token.type == "anmelden") {
+      GameServer.users.forEach((user, index) => {
+        if (token.name == user.name) {
+          if (token.password == user.password) {
+            user.update(socket.id);
+            token.sid = user.sid;
+            token.id = socket.id;
+            io.to(user.id).emit("joinOk", token);
+            io.emit("join", user.name);
+            console.log("user accepted:", user);
+          } else {
+            console.log("user not accepted:", user);
+          }
+        } else {
+          console.log("user not accepted:", user);
+        }
+      });
+    }
+    if (token.type == "registrien") {
+      GameServer.users.forEach((user, index) => {
+        if (user.name == token.name) {
+          console.log("user can't logging is: user already exists");
+          io.to(socket.id).emit("joinNotOk", token);
+        } else {
+          user = new User(socket.id, token.name);
+          user.create(socket.id, token.name, token.password);
+          GameServer.users.push(user);
+          console.log(GameServer.users);
+          token.sid = user.sid;
+          token.id = socket.id;
+          io.to(user.id).emit("joinOk", token);
+          console.log("User registerd:", user);
+        }
+      });
+    }
   });
   socket.on("request", (data) => {
-    console.log(data);
-    GameServer.players.forEach((player, index) => {
-      if (player.registerd == true) {
-        if (player.id == data.id) {
+    //console.log(data);
+    GameServer.users.forEach((user, index) => {
+      if (user.registerd == true) {
+        if (user.id == data.id) {
           if (data.actionMessage == true) {
-            player.message = data.message;
-            player.actionMessage = data.actionMessage;
+            user.message = data.message;
+            user.actionMessage = data.actionMessage;
           }
         }
       }
     });
   });
-  var ping = () => {
-    GameServer.players.forEach((player, index) => {
-      try {
-        if (player.registerd == true) {
-          let packet = new Status();
-          packet.discription = "normal Ping";
-          io.to(player.id).emit("ping", packet);
-          socket.on("ping", (data) => {
-            if (data.clientStatus == "ok") {
-              player.registerd == true;
-            }
-            if (data.clientStatus == "logout") {
-              player.registerd = false;
-            }
-          });
-        }
-      } catch (e) {
-        GameServer.catchHealth("ping", e);
-        player.registerd = false;
-      }
-    });
-  };
-  GameServer.players.forEach((player, index) => {
-    let output = new Output();
-    output.type = "statusPannel";
-    output.author = "Server";
-    output.content = GameServer.online;
-    io.to(player.id).emit("response", output);
-  });
   socket.on("disconnect", function () {
-    GameServer.online += -1;
-    GameServer.players.forEach((player, index) => {
-      let output = new Output();
-      output.type = "statusPannel";
-      output.author = "Server";
-      output.content = GameServer.online;
-      io.to(player.id).emit("response", output);
+    GameServer.users.forEach((user, index) => {
+      if (user.id == socket.id) {
+        user.online = false;
+        let output = new Output();
+        output.type = "sayMessage";
+        output.isMessage = true;
+        output.author = "Server";
+        output.content = user.name + " disconnected.";
+        console.log("[info/Socket]:", user.name, "disconnected");
+        io.emit("response", output);
+        output.type = "sayMessage";
+        output.isMessage = true;
+        output.content = user.name + " disconnected";
+        wrongContent = false;
+        GameServer.output[output];
+      }
     });
   });
 });
@@ -115,8 +101,8 @@ io.on("connection", (socket) => {
 GameServer = {
   tick: 0,
   clock: 0,
-  online: 0,
-  players: [],
+  online: [],
+  users: [],
   output: [],
 
   catchHealth: (error, e) => {
@@ -127,8 +113,11 @@ GameServer = {
       console.log("[WARN/Ping]:", e);
     }
   },
-
   boot: () => {
+    console.log("[info/GameServer]: starting");
+    server = new User(null);
+    server.name = "Server";
+    GameServer.users.push(server);
     setInterval(() => {
       GameServer.gameServer();
     }, 100);
@@ -152,33 +141,84 @@ GameServer = {
     //
     //-----------GameServer--------------
     //
-    GameServer.players.forEach((player, index) => {
-      if (player.registerd == true) {
-        if (player.actionMessage == true) {
-          let command = player.message.split(" ");
-          if (command[0] == "say") {
-            let message = new Output();
-            message.author = player.name;
-            command.shift();
-            command.forEach((word, index) => {
-              var text = text + " " + command[index];
-              message.content = text;
-            });
-            message.type = "sayMessage";
-            message.isMessage = true;
-            GameServer.output.push(message);
+    GameServer.users.forEach((user, index) => {
+      if (user.registerd == true) {
+        if (user.online == true) {
+          if (user.actionMessage == true) {
+            var wrongContent = true;
+            let command = user.message.split(" ");
+            //
+            //----------------say command------------------
+            //
+            if (command[0] == "say") {
+              wrongContent = false;
+              var message = new Output();
+              message.author = user.name;
+              text2 = "";
+              command.forEach((word, index) => {
+                if (index == 0) {
+                } else {
+                  var text = text2 + " " + word;
+                  text2 = text;
+                  message.content = text;
+                }
+              });
+              message.type = "sayMessage";
+              message.isMessage = true;
+              message.useClientId = false;
+              console.log(
+                "[info/GameServer]:",
+                message.author,
+                "says:",
+                message.content
+              );
+            }
+            //
+            //-------------list command--------
+            //
+
+            if (command[0] == "list") {
+              //--------list users---------
+              if (command[1] == "users") {
+                console.log("[info/GameServer]:", user.name, "list all users");
+                let output = new Output();
+                output.type = "statusPannel";
+                output.author = "Server";
+                output.content = GameServer.online;
+                io.to(user.id).emit("response", output);
+                wrongContent = false;
+              }
+            } //
+            if (wrongContent == false) {
+              GameServer.output.push(message);
+            }
+            user.actionMessage = false;
           }
-          //
-          player.actionMessage = false;
         }
+        //
+        //----------------message sender-------------
+        //
+      }
+      try {
         GameServer.output.forEach((data, index2) => {
-          if (data.count == GameServer.players.length) {
-            GameServer.output.splice(index2, 1);
-          } else {
-            data.count += 1;
-            io.to(player.id).emit("response", data);
+          if (wrongContent == false) {
+            //console.log("[info/GameServer]: send", data.content);
+            if (data.useClientId == false) {
+              io.emit("response", data);
+              GameServer.output.splice(index2, 1);
+            } else {
+              if (data.toClienyId == user.id) {
+                io.to(user.id).emit("response", data);
+                GameServer.output.splice(index2, 1);
+              }
+            }
           }
         });
+      } catch (e) {
+        console.log(
+          "[WARN/GameServer]: message sender had an error: message with failure content:",
+          e
+        );
       }
     });
   },

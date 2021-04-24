@@ -7,11 +7,22 @@
     ></script>
   </head>
   <body>
-    <h1>TextGame</h1>
-    <label for="fname">Name:</label><br />
+    <h1>TextGame(in developing) by Feddis08</h1>
+    <select id="logging">
+      <option value="registrien">registrien</option>	
+      <option value="anmelden">anmelden</option>	
+		</select>
+    <label for="fname">Name:</label>
     <input type="text" id="fname" name="pName" />
+    <label for="fpw">Password:</label>
+    <input type="text" id="fPw" name="pPw" />
     <button onClick="Server.join();">Join</button>
     <hr></hr>
+    <p id="pOutput9"></p>
+    <p id="pOutput8"></p>
+    <p id="pOutput7"></p>
+    <p id="pOutput6"></p>
+    <p id="pOutput5"></p>
     <p id="pOutput4"></p>
     <p id="pOutput3"></p>
     <p id="pOutput2"></p>
@@ -21,6 +32,7 @@
     <label for="fname">Command:</label>
     <input type="text" id="fCommand" name="fCommand" />
     <button onClick="Server.send();">send</button><br />
+    <hr></hr>
     <p id="pStatus"></p>
     <script src="./script.js"></script>
   </body>
